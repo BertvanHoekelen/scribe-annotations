@@ -40,6 +40,27 @@ class UseApiResourceAnnotationsTest extends BaseLaravelTest
     /**
      * @test
      */
+    public function can_parse_api_resource_annotations_with_model(): void
+    {
+        $results = $this->getResultsForRoute([TestController::class, 'withEloquentApiResourceAnnotationAndModel']);
+
+        self::assertArraySubset([
+            [
+                'status' => 200,
+                'content' => json_encode([
+                    'data' => [
+                        'id' => 1,
+                        'name' => 'Tested Again',
+                        'email' => 'a@b.com',
+                    ],
+                ]),
+            ],
+        ], $results);
+    }
+
+    /**
+     * @test
+     */
     public function can_parse_api_resource_annotations_with_model_factory_states(): void
     {
         $results = $this->getResultsForRoute([TestController::class, 'withEloquentApiResourceAnnotationWithStates']);

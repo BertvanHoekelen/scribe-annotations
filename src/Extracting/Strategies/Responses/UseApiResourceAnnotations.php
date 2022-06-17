@@ -7,6 +7,7 @@ namespace Magwel\ScribeAnnotations\Extracting\Strategies\Responses;
 use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Http\Response;
@@ -19,6 +20,7 @@ use Knuckles\Scribe\Tools\ConsoleOutputUtils as c;
 use Knuckles\Scribe\Tools\ErrorHandlingUtils as e;
 use Knuckles\Scribe\Tools\Utils;
 use Magwel\ScribeAnnotations\Attributes\ApiResource;
+use Mpociot\Reflection\DocBlock;
 use ReflectionClass;
 use ReflectionMethod;
 use Throwable;
@@ -37,15 +39,17 @@ class UseApiResourceAnnotations extends Strategy
         $method = Utils::getReflectedRouteMethod(Utils::getRouteClassAndMethodNames($endpointData->route));
 
         $apiResourceAttribute = $method->getAttributes(ApiResource::class)[0] ?? null;
-
-        if (! $apiResourceAttribute) {
-            return null;
-        }
+        /** @var class-string<JsonResource> $returnType */
+        $returnType = $method->getReturnType()?->getName(); /* @phpstan-ignore-line */
 
         $this->startDbTransaction();
 
         try {
-            return $this->getApiResourceResponse($endpointData, $method, $apiResourceAttribute->newInstance());
+            if ($apiResourceAttribute) {
+                return $this->getApiResourceResponseFromAttribute($endpointData, $returnType, $apiResourceAttribute->newInstance());
+            }
+
+            return $this->fromDocBlocks($endpointData, $returnType);
         } catch (Exception $e) {
             c::warn('Exception thrown when fetching Eloquent API resource response for ' . $endpointData->name());
             e::dumpExceptionIfVerbose($e);
@@ -56,50 +60,101 @@ class UseApiResourceAnnotations extends Strategy
         }
     }
 
-    public function getApiResourceResponse(ExtractedEndpointData $endpointData, ReflectionMethod $method, ApiResource $apiResource): ?array
+    /**
+     * @param class-string<JsonResource> $returnType
+     */
+    public function fromDocBlocks(ExtractedEndpointData $endpointData, string $returnType): ?array
     {
-        /** @var class-string<JsonResource> $apiResourceClass */
-        $apiResourceClass = $method->getReturnType()?->getName() ?? $apiResource->resourceClass; /** @phpstan-ignore-line */
-        $resource = new ReflectionClass($apiResourceClass);
+        $class = new ReflectionClass($returnType);
+        $docBlock = new DocBlock($class->getDocComment() ?: '');
 
-        $modelInstance = $this->instantiateApiResourceModel($apiResource->resourceModel, $apiResource->factoryStates, $apiResource->relations);
+        /** @var \Mpociot\Reflection\DocBlock\Tag|null $tag */
+        $tag = collect($docBlock->getTags())->first(fn (DocBlock\Tag $tag) => $tag->getName() === 'mixin');
 
-        if (! $resource->isSubclassOf(ResourceCollection::class)) {
+        if ($tag && $content = $tag->getContent()) {
+            return $this->getApiResourceResponseFromReturnType($endpointData, $returnType, $content);
+        }
+
+        return null;
+    }
+
+    public function getApiResourceResponseFromReturnType(ExtractedEndpointData $endpointData, string $returnType, string $resourceModel): ?array
+    {
+        return $this->getApiResourceResponse(
+            $endpointData,
+            $resourceModel,
+            $returnType
+        );
+    }
+
+    public function getApiResourceResponseFromAttribute(ExtractedEndpointData $endpointData, string $returnType, ApiResource $apiResource): ?array
+    {
+        $collection = in_array(ResourceCollection::class, class_parents($returnType) ?: []);
+
+        return $this->getApiResourceResponse(
+            $endpointData,
+            $apiResource->resourceModel,
+            $apiResource->resourceClass ?? $returnType,
+            $apiResource->factoryStates,
+            $apiResource->relations,
+            $returnType === AnonymousResourceCollection::class,
+            $collection,
+            $apiResource->perPage,
+            $apiResource->simplePaginator,
+            $apiResource->statusCode,
+        );
+    }
+
+    protected function getApiResourceResponse(
+        ExtractedEndpointData $endpointData,
+        string $resourceModel,
+        string $apiResourceClass,
+        array $factoryStates = [],
+        array $relations = [],
+        bool $anonymous = false,
+        bool $collection = false,
+        ?int $perPage = null,
+        bool $simplePaginator = false,
+        int $statusCode = 200
+    ): ?array {
+        $modelInstance = $this->instantiateApiResourceModel($resourceModel, $factoryStates, $relations);
+
+        if (! $collection) {
             /** @var JsonResource $resource */
             $resource = new $apiResourceClass($modelInstance);
 
-            return $this->getResourceResponse($endpointData, $resource, $apiResource);
+            return $this->getResourceResponse($endpointData, $resource, $statusCode);
         }
 
-        $models = collect([$modelInstance, $this->instantiateApiResourceModel($apiResource->resourceModel, $apiResource->factoryStates, $apiResource->relations)]);
+        $models = collect([$modelInstance, $this->instantiateApiResourceModel($resourceModel, $factoryStates, $relations)]);
 
-        if ($apiResource->perPage && $apiResource->simplePaginator) {
-            $paginator = new Paginator($models, $apiResource->perPage);
+        if ($perPage && $simplePaginator) {
+            $paginator = new Paginator($models, $perPage);
             $list = $paginator;
-        } elseif ($apiResource->perPage) {
+        } elseif ($perPage) {
             $paginator = new LengthAwarePaginator(
-            // For some reason, the LengthAware paginator needs only first page items to work correctly
-                $models->slice(0, $apiResource->perPage),
+                $models->slice(0, $perPage),
                 count($models),
-                $apiResource->perPage
+                $perPage
             );
             $list = $paginator;
         } else {
             $list = $models;
         }
 
-        if ($apiResource->resourceClass) {
-            $resource = $apiResource->resourceClass::collection($list);
+        if ($anonymous) {
+            $resource = $apiResourceClass::collection($list);
 
-            return $this->getResourceResponse($endpointData, $resource, $apiResource);
+            return $this->getResourceResponse($endpointData, $resource, $statusCode);
         }
 
+        /** @var \Illuminate\Http\Resources\Json\ResourceCollection $resource */
         $resource = new $apiResourceClass($list);
 
-        return $this->getResourceResponse($endpointData, $resource, $apiResource);
+        return $this->getResourceResponse($endpointData, $resource, $statusCode);
     }
 
-    protected function getResourceResponse(ExtractedEndpointData $endpointData, JsonResource $resource, ApiResource $apiResource): array
+    protected function getResourceResponse(ExtractedEndpointData $endpointData, JsonResource $resource, int $statusCode): array
     {
         $uri = Utils::getUrlWithBoundParameters($endpointData->route?->uri() ?? '', $endpointData->cleanUrlParameters);
         $method = $endpointData->route?->methods()[0];
@@ -121,7 +176,7 @@ class UseApiResourceAnnotations extends Strategy
 
         return [
             [
-                'status' => $apiResource->statusCode,
+                'status' => $statusCode,
                 'content' => $response->getContent(),
             ],
         ];

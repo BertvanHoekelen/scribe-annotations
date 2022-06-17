@@ -16,8 +16,13 @@ use Magwel\ScribeAnnotations\Attributes\ApiResource;
  */
 class TestController extends Controller
 {
-    #[ApiResource(TestUser::class)]
     public function withEloquentApiResourceAnnotation(): TestUserApiResource
+    {
+        return new TestUserApiResource(Utils::getModelFactory(TestUser::class)->make(['id' => 0]));
+    }
+
+    #[ApiResource(TestUser::class)]
+    public function withEloquentApiResourceAnnotationAndModel(): TestUserApiResource
     {
         return new TestUserApiResource(Utils::getModelFactory(TestUser::class)->make(['id' => 0]));
     }
