@@ -15,8 +15,8 @@ class ApiResource
      */
     public function __construct(
         public string $resourceModel,
-        public int $statusCode = 200,
         public ?string $resourceClass = null,
+        public int $statusCode = 200,
         public array $factoryStates = [],
         public array $relations = [],
         public ?int $perPage = null,

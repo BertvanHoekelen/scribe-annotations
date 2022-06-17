@@ -27,7 +27,7 @@ class TestController extends Controller
         return new TestUserApiResource(Utils::getModelFactory(TestUser::class)->make(['id' => 0]));
     }
 
-    #[ApiResource(TestUser::class, 201, factoryStates: ['randomState'])]
+    #[ApiResource(TestUser::class, statusCode: 201, factoryStates: ['randomState'])]
     public function withEloquentApiResourceAnnotationWithStates(): TestUserApiResource
     {
         return new TestUserApiResource(Utils::getModelFactory(TestUser::class)->make(['id' => 0]));
