@@ -2,7 +2,7 @@
 
 The amazing [scribe](scribe.knuckles.wtf) package can generate API documentation automatically from your Laravel project. 
 
-This package adds PHP 8 annotations so the IDE is aware of class names. 
+This package adds PHP 8 annotations, so you can make use of autocompletion in your favorite IDE.
 It can also automatically determine related model names from the mixin annotation in your JsonResource.
 
 # Annotation's
@@ -95,7 +95,7 @@ class UserController
 
 ```php
 /**
- * @mixin \Magwel\ScribeAnnotations\Tests\Fixtures\TestUser
+ * @mixin App\Models\User;
  */
 class UserResource extends JsonResource
 {
@@ -112,6 +112,7 @@ class UserResource extends JsonResource
 ```php
 <?php
 
+use App\Models\User;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Magwel\ScribeAnnotations\Attributes\ApiResource;
  
