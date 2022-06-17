@@ -1,0 +1,44 @@
+{
+    "name": "bertvanhoekelen/scribe-annotations",
+    "description": "Ability to add documentation based on PHP annotations",
+    "type": "library",
+    "require": {
+        "php": "8.0.*|8.1.*",
+        "knuckleswtf/scribe": "^3.31",
+        "illuminate/console": "^6.0|^7.0|^8.0|^9.0",
+        "illuminate/routing": "^6.0|^7.0|^8.0|^9.0",
+        "illuminate/support": "^6.0|^7.0|^8.0|^9.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^4.0|^5.0|^6.0|^7.0",
+        "dms/phpunit-arraysubset-asserts": "^0.4.0",
+        "laravel/framework": "^9.17",
+        "phpstan/extension-installer": "^1.1",
+        "phpstan/phpstan-deprecation-rules": "^1.0",
+        "phpstan/phpstan-phpunit": "^1.1",
+        "nunomaduro/larastan": "^2.1",
+        "friendsofphp/php-cs-fixer": "^3.8"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Magwel\\ScribeAnnotations\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Magwel\\ScribeAnnotations\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Bert van Hoekelen",
+            "email": "bert@magwel.nl"
+        }
+    ],
+    "config": {
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    }
+}
