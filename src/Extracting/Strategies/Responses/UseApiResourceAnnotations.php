@@ -23,6 +23,7 @@ use Magwel\ScribeAnnotations\Attributes\ApiResource;
 use Mpociot\Reflection\DocBlock;
 use ReflectionClass;
 use ReflectionMethod;
+use ReflectionUnionType;
 use Throwable;
 
 class UseApiResourceAnnotations extends Strategy
@@ -39,8 +40,10 @@ class UseApiResourceAnnotations extends Strategy
         $method = Utils::getReflectedRouteMethod(Utils::getRouteClassAndMethodNames($endpointData->route));
 
         $apiResourceAttribute = $method->getAttributes(ApiResource::class)[0] ?? null;
+        $returnTypes = $method->getReturnType();
+
         /** @var class-string<JsonResource> $returnType */
-        $returnType = $method->getReturnType()?->getName(); /* @phpstan-ignore-line */
+        $returnType = ($returnTypes instanceof ReflectionUnionType) ? $returnTypes->getTypes()[0]->getName() : $returnTypes->getName(); /* @phpstan-ignore-line */
 
         $this->startDbTransaction();
 
